@@ -1,0 +1,17 @@
+# dependencies
+node_modules
+
+# secrets — keep the template, ignore real env files
+.env
+.env.*
+!.env.example
+
+# Hardhat build artifacts
+artifacts/
+cache/
+typechain-types/
+
+# coverage / misc
+coverage/
+coverage.json
+*.log
