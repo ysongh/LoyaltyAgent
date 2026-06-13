@@ -1,0 +1,22 @@
+{
+  "name": "server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Transport-agnostic agent service for the loyalty app. Stage 1: Telegram adapter + echo core.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "check": "tsc --noEmit",
+    "core:check": "tsx src/dev/core-check.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "grammy": "^1.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsx": "^4.20.0",
+    "typescript": "^6.0.3"
+  }
+}
