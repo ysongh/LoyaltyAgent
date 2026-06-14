@@ -43,6 +43,8 @@ export interface ServerConfig {
   maxPointsPerReceipt: number;
   /** Photo-receipt path: max points per user per rolling 24h. */
   maxPointsPerDay: number;
+  /** Ethereum MAINNET RPC — used ONLY for live ENS resolution (never for Arc txs). */
+  mainnetRpcUrl: string;
 }
 
 function addrEnv(name: string): `0x${string}` {
@@ -70,5 +72,6 @@ export function loadServerConfig(): ServerConfig {
     maxReceiptTotal: intEnv("MAX_RECEIPT_TOTAL", 1000),
     maxPointsPerReceipt: intEnv("MAX_POINTS_PER_RECEIPT", 500),
     maxPointsPerDay: intEnv("MAX_POINTS_PER_DAY", 1000),
+    mainnetRpcUrl: process.env.MAINNET_RPC_URL?.trim() || "https://ethereum-rpc.publicnode.com",
   };
 }

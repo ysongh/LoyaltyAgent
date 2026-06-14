@@ -50,3 +50,24 @@ then mints) — the frictionless story. Crediting mints via the operator wallet
 (same path as Stage 4). The Stage 1 `dedupeId` guard prevents a retried photo
 update from double-minting; the unique `image_hash`/`content_hash` indexes are the
 durable backstop.
+
+## Gift recipients: @username vs ENS (.eth)
+
+The gift flow resolves two recipient types:
+
+- **@username** → an onboarded customer whose Dynamic wallet **this system custodies**.
+- **`.eth` (ENS)** → resolved **live on Ethereum mainnet** via `getEnsAddress`
+  ([chain/ens.ts](src/chain/ens.ts)). There is **no hard-coded name→address map** —
+  every lookup is a real on-chain call. ENS lives on mainnet (chainId 1), so a
+  **separate** viem client points at `MAINNET_RPC_URL`; the Arc client cannot
+  resolve ENS and no Arc transaction is ever routed through the mainnet client.
+
+> **Honest note — ENS recipients are external.** A resolved `.eth` address is the
+> recipient's **real external wallet**, which this system does **not** manage
+> (unlike a custodial @username recipient whose wallet we provisioned). The gift
+> sends to the resolved address **as-is** — we never silently swap it for a
+> custodial wallet. An unresolved `.eth` name returns a clean "couldn't resolve"
+> and does **not** fall back to the username path. ENS only determines the
+> recipient address; the resolved address still flows through the same
+> affordability check and confirm-then-execute YES gate before any tokens move.
+> The confirmation shows `name → address` so the live resolution is visible.

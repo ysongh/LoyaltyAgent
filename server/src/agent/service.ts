@@ -7,7 +7,10 @@ import { parseIntent } from "../intent/parser";
 import { interpretIntent } from "../intent/validate";
 import { PendingStore, type PendingAction } from "./pending";
 import { txUrl } from "../chain/arc";
+import { EnsResolver } from "../chain/ens";
 import { log } from "../log";
+
+const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 const AFFIRM = new Set(["yes", "y", "yeah", "yep", "yup", "confirm", "ok", "okay", "sure"]);
 const DENY = new Set(["no", "n", "nope", "cancel", "stop", "nevermind", "never mind"]);
@@ -20,6 +23,8 @@ export interface AgentDeps {
   anthropic: Anthropic;
   replier: Replier;
   merchantId: number;
+  /** Live ENS resolver (mainnet). */
+  ens: EnsResolver;
   /** Pending-action TTL in ms (default 5 min). */
   pendingTtlMs?: number;
 }
@@ -126,12 +131,36 @@ export class AgentService {
     const senderAddr = await this.customerAddress(userKey);
     if (!senderAddr) return this.reply(userKey, "Your wallet isn't set up yet.");
 
-    const recipient = await this.deps.repo.getCustomerByUsername(recipientRaw);
-    const handle = recipientRaw.replace(/^@/, "");
-    if (!recipient?.wallet_address) {
-      return this.reply(userKey, `@${handle} needs to scan a receipt first before you can gift them.`);
+    // Resolve the recipient: a .eth name via a LIVE mainnet ENS lookup, otherwise
+    // the existing @username/onboarded-customer path. The two are kept separate —
+    // an unresolved .eth never falls back to username.
+    let kind: "username" | "ens";
+    let label: string;
+    let handle: string;
+    let recipientAddress: Address;
+
+    if (EnsResolver.isEnsName(recipientRaw)) {
+      const name = recipientRaw.trim().toLowerCase();
+      const resolved = await this.deps.ens.resolve(name);
+      if (!resolved) {
+        return this.reply(userKey, `Couldn't resolve ${name} — double-check the ENS name and try again.`);
+      }
+      kind = "ens";
+      label = name;
+      handle = name;
+      recipientAddress = resolved;
+    } else {
+      handle = recipientRaw.replace(/^@/, "");
+      const recipient = await this.deps.repo.getCustomerByUsername(recipientRaw);
+      if (!recipient?.wallet_address) {
+        return this.reply(userKey, `@${handle} needs to scan a receipt first before you can gift them.`);
+      }
+      kind = "username";
+      label = `@${handle}`;
+      recipientAddress = recipient.wallet_address as Address;
     }
-    if (recipient.wallet_address.toLowerCase() === senderAddr.toLowerCase()) {
+
+    if (recipientAddress.toLowerCase() === senderAddr.toLowerCase()) {
       return this.reply(userKey, "You can't gift points to yourself.");
     }
     const balance = await this.deps.executor.pointsBalance(senderAddr, this.deps.merchantId);
@@ -145,12 +174,16 @@ export class AgentService {
       points,
       merchantId: this.deps.merchantId,
       business,
+      recipientKind: kind,
       recipientHandle: handle,
-      recipientAddress: recipient.wallet_address as Address,
+      recipientLabel: label,
+      recipientAddress,
     });
+    // Show the resolved name → address so live ENS resolution is visible.
+    const dest = kind === "ens" ? `${label} (${shortAddr(recipientAddress)})` : label;
     await this.reply(
       userKey,
-      `Gift ${points} points to @${handle} at ${business}? Reply YES to confirm, NO to cancel.`,
+      `Gift ${points} points at ${business} to ${dest}? Reply YES to confirm, NO to cancel.`,
     );
   }
 
@@ -191,21 +224,27 @@ export class AgentService {
         return;
       }
 
-      // gift — re-resolve recipient at execution time too.
-      const recipient = await this.deps.repo.getCustomerByUsername(action.recipientHandle ?? "");
-      if (!recipient?.wallet_address) {
-        await this.reply(userKey, `@${action.recipientHandle} is no longer available to receive points.`);
-        return;
+      // gift — resolve the destination address for execution.
+      let recipientAddr: Address;
+      if (action.recipientKind === "ens") {
+        // An ENS-resolved address is the recipient's REAL external wallet — it is
+        // NOT a custodial wallet this system manages (unlike @username recipients,
+        // whose wallets we provisioned). We send to it as-is and do not swap it for
+        // a custodial wallet. See README "ENS recipients" for the trust note.
+        recipientAddr = action.recipientAddress as Address;
+      } else {
+        // Username recipients are re-resolved at execution for freshness.
+        const recipient = await this.deps.repo.getCustomerByUsername(action.recipientHandle ?? "");
+        if (!recipient?.wallet_address) {
+          await this.reply(userKey, `@${action.recipientHandle} is no longer available to receive points.`);
+          return;
+        }
+        recipientAddr = recipient.wallet_address as Address;
       }
-      const hash = await this.deps.executor.gift(
-        signer,
-        action.merchantId,
-        action.points,
-        recipient.wallet_address as Address,
-      );
+      const hash = await this.deps.executor.gift(signer, action.merchantId, action.points, recipientAddr);
       await this.reply(
         userKey,
-        `✅ Gifted ${action.points} points to @${action.recipientHandle} at ${action.business}.\n${txUrl(hash)}`,
+        `✅ Gifted ${action.points} points to ${action.recipientLabel} at ${action.business}.\n${txUrl(hash)}`,
       );
     } catch (err) {
       log.error("execution failed", { type: action.type, message: err instanceof Error ? err.message : String(err) });

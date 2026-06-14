@@ -37,7 +37,8 @@ export const INTENT_TOOLS: Anthropic.Tool[] = [
         points: { type: "integer", description: "Number of points to gift. Omit if not clearly stated." },
         recipient: {
           type: "string",
-          description: "Who receives the points — a Telegram username or @handle. Omit if not named.",
+          description:
+            "Who receives the points — a Telegram username/@handle, or an ENS name ending in .eth (e.g. alice.eth). Omit if not named.",
         },
       },
       additionalProperties: false,

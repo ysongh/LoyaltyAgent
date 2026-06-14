@@ -13,8 +13,13 @@ export interface PendingAction {
   business: string;
   /** Redeem: native-USDC (18-dec wei) the customer would receive. */
   usdcOut?: bigint;
-  /** Gift: the resolved recipient. */
+  /** Gift: how the recipient was resolved. */
+  recipientKind?: "username" | "ens";
+  /** Gift: bare handle (username) or ENS name — used to re-resolve usernames at execution. */
   recipientHandle?: string;
+  /** Gift: display label, e.g. "@bob" or "alice.eth". */
+  recipientLabel?: string;
+  /** Gift: the resolved recipient address. */
   recipientAddress?: `0x${string}`;
   createdAt: number;
   expiresAt: number;

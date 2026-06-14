@@ -5,6 +5,7 @@ import { Repo } from "./db/repo";
 import { WalletProvisioner } from "./wallet";
 import { makePublicClient } from "./chain/arc";
 import { ChainExecutor } from "./chain/executor";
+import { EnsResolver } from "./chain/ens";
 import { AgentService } from "./agent/service";
 import { ReceiptService } from "./receipts/service";
 import { OnboardingCore } from "./core/onboarding";
@@ -36,12 +37,16 @@ async function main() {
 
   // Stage 4 brain for known customers (confirm → execute). Uses the transport
   // only as a Replier; the core stays free of grammY/Anthropic types.
+  // ENS resolution runs on a SEPARATE mainnet client (chainId 1); Arc can't resolve ENS.
+  const ens = new EnsResolver(cfg.mainnetRpcUrl);
+
   const agent = new AgentService({
     repo,
     executor,
     anthropic,
     replier: transport,
     merchantId: cfg.demoMerchantId,
+    ens,
     pendingTtlMs: cfg.pendingTtlMs,
   });
 
