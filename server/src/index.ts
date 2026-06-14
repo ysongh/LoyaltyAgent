@@ -6,6 +6,7 @@ import { WalletProvisioner } from "./wallet";
 import { makePublicClient } from "./chain/arc";
 import { ChainExecutor } from "./chain/executor";
 import { AgentService } from "./agent/service";
+import { ReceiptService } from "./receipts/service";
 import { OnboardingCore } from "./core/onboarding";
 import { TelegramTransport } from "./transport/telegram";
 import { log } from "./log";
@@ -44,12 +45,26 @@ async function main() {
     pendingTtlMs: cfg.pendingTtlMs,
   });
 
+  // Photo-receipt path (parallel to signed-QR; no crypto proof, immediate credit).
+  const receipts = new ReceiptService({
+    repo,
+    executor,
+    provisioner,
+    anthropic,
+    replier: transport,
+    merchantId: cfg.demoMerchantId,
+    maxReceiptTotal: cfg.maxReceiptTotal,
+    maxPointsPerReceipt: cfg.maxPointsPerReceipt,
+    maxPointsPerDay: cfg.maxPointsPerDay,
+  });
+
   const core = new OnboardingCore({
     repo,
     provisioner,
     replier: transport,
     chainId: cfg.arcChainId,
     handleCustomerMessage: (msg) => agent.handle(msg),
+    handlePhoto: (msg) => receipts.handle(msg),
   });
 
   // Telegram adapter → OnboardingCore → reply. The core only receives InboundMessage.

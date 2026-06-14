@@ -37,6 +37,12 @@ export interface ServerConfig {
   demoMerchantId: number;
   /** Confirm-then-execute pending TTL in ms (default 5 min). */
   pendingTtlMs: number;
+  /** Photo-receipt path: reject totals above this (sane cap). */
+  maxReceiptTotal: number;
+  /** Photo-receipt path: max points credited per single receipt. */
+  maxPointsPerReceipt: number;
+  /** Photo-receipt path: max points per user per rolling 24h. */
+  maxPointsPerDay: number;
 }
 
 function addrEnv(name: string): `0x${string}` {
@@ -61,5 +67,8 @@ export function loadServerConfig(): ServerConfig {
     merchantEscrowAddress: addrEnv("MERCHANT_ESCROW_ADDRESS"),
     demoMerchantId: intEnv("DEMO_MERCHANT_ID", 1),
     pendingTtlMs: intEnv("PENDING_TTL_MS", 5 * 60_000),
+    maxReceiptTotal: intEnv("MAX_RECEIPT_TOTAL", 1000),
+    maxPointsPerReceipt: intEnv("MAX_POINTS_PER_RECEIPT", 500),
+    maxPointsPerDay: intEnv("MAX_POINTS_PER_DAY", 1000),
   };
 }

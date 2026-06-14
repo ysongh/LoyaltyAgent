@@ -189,4 +189,69 @@ export class Repo {
 
     return customer as Customer;
   }
+
+  // --- Photo-receipt path: dedupe + daily cap ---
+
+  async hasReceiptImage(imageHash: string): Promise<boolean> {
+    const { data, error } = await this.sb
+      .from("receipt_claims").select("id").eq("image_hash", imageHash).maybeSingle();
+    if (error) throw error;
+    return !!data;
+  }
+
+  async hasReceiptContent(contentHash: string): Promise<boolean> {
+    const { data, error } = await this.sb
+      .from("receipt_claims").select("id").eq("content_hash", contentHash).maybeSingle();
+    if (error) throw error;
+    return !!data;
+  }
+
+  /** Sum of receipt points credited to a user since `sinceIso` (for the daily cap). */
+  async sumReceiptPointsSince(userKey: string, sinceIso: string): Promise<bigint> {
+    const { data, error } = await this.sb
+      .from("receipt_claims").select("points").eq("user_key", userKey).gte("created_at", sinceIso);
+    if (error) throw error;
+    return (data ?? []).reduce((acc, r) => acc + BigInt((r as { points: number | string }).points), 0n);
+  }
+
+  /**
+   * Reserve a claim (unique image_hash/content_hash). Returns the new id, or null
+   * if a concurrent/duplicate claim already took one of the hashes (23505).
+   */
+  async reserveReceiptClaim(args: {
+    userKey: string;
+    imageHash: string;
+    contentHash: string;
+    merchant: string;
+    total: number;
+    points: bigint;
+  }): Promise<string | null> {
+    const { data, error } = await this.sb
+      .from("receipt_claims")
+      .insert({
+        user_key: args.userKey,
+        image_hash: args.imageHash,
+        content_hash: args.contentHash,
+        merchant: args.merchant,
+        total: args.total,
+        points: Number(args.points),
+      })
+      .select("id")
+      .single();
+    if (error) {
+      if ((error as { code?: string }).code === "23505") return null; // unique violation = duplicate
+      throw error;
+    }
+    return (data as { id: string }).id;
+  }
+
+  async setReceiptClaimTx(id: string, txHash: string): Promise<void> {
+    const { error } = await this.sb.from("receipt_claims").update({ tx_hash: txHash }).eq("id", id);
+    if (error) throw error;
+  }
+
+  async deleteReceiptClaim(id: string): Promise<void> {
+    const { error } = await this.sb.from("receipt_claims").delete().eq("id", id);
+    if (error) throw error;
+  }
 }

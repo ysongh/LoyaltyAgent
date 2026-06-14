@@ -18,6 +18,8 @@ export interface InboundMessage {
   startPayload?: string;
   /** The sender's human handle on the transport (Telegram @username), if any. Used to resolve gift recipients. */
   senderUsername?: string;
+  /** An attached image (receipt photo), transport-neutral as base64 — no grammY object leaks into the core. */
+  image?: { base64: string; mimeType: string };
 }
 
 /** Anything that can send a text reply, addressed by the same `userKey` carried inbound. */

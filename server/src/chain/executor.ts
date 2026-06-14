@@ -104,6 +104,27 @@ export class ChainExecutor {
     return hash;
   }
 
+  /**
+   * Mint points to a customer, signed by the OPERATOR (merchant-owner). Used by
+   * the photo-receipt path to credit immediately.
+   */
+  async mint(
+    operator: SigningWallet,
+    merchantId: number,
+    to: Address,
+    amount: bigint,
+  ): Promise<`0x${string}`> {
+    const wallet = await this.wallets.walletClientFor(operator.walletMetadata, operator.shares);
+    const hash = await wallet.writeContract({
+      address: this.loyalty,
+      abi: LOYALTY_POINTS_ABI,
+      functionName: "mint",
+      args: [BigInt(merchantId), to, amount],
+    });
+    await this.assertMined(hash);
+    return hash;
+  }
+
   private async assertMined(hash: `0x${string}`): Promise<void> {
     const receipt = await this.pub.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") {

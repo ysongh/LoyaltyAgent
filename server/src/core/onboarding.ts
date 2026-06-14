@@ -8,6 +8,9 @@ import { log } from "../log";
 /** Handles a known customer's free-text message (Stage 4 agent brain). */
 export type CustomerMessageHandler = (msg: InboundMessage) => Promise<void>;
 
+/** Handles a photo message (receipt path — extracts, credits; onboards if new). */
+export type PhotoHandler = (msg: InboundMessage) => Promise<void>;
+
 const COLD_REPLY = "Scan a receipt to get started.";
 const INVALID_REPLY =
   "That link is invalid or has already been used. Please scan a new receipt.";
@@ -21,6 +24,8 @@ export interface OnboardingDeps {
   chainId: number;
   /** Handles a known customer's free-text message (Stage 4: parse → confirm → execute). */
   handleCustomerMessage: CustomerMessageHandler;
+  /** Handles a receipt photo (extract → fraud controls → credit; onboards if new). */
+  handlePhoto: PhotoHandler;
 }
 
 /**
@@ -41,6 +46,14 @@ export class OnboardingCore {
       return;
     }
     this.seen.add(msg.dedupeId);
+
+    // Photo path runs in parallel to signed-QR onboarding; it handles both known
+    // and unknown users (a photo onboards). The dedupeId guard above prevents a
+    // retried photo update from double-crediting.
+    if (msg.image) {
+      await this.deps.handlePhoto(msg);
+      return;
+    }
 
     const token = msg.startPayload?.trim();
     if (token) {

@@ -14,7 +14,7 @@ export class TelegramTransport implements Transport {
   private readonly bot: Bot;
   private handler?: MessageHandler;
 
-  constructor(token: string) {
+  constructor(private readonly token: string) {
     this.bot = new Bot(token);
   }
 
@@ -47,6 +47,24 @@ export class TelegramTransport implements Transport {
         text: ctx.message.text,
         dedupeId: String(ctx.update.update_id),
         senderUsername: ctx.from.username,
+      });
+    });
+
+    // Photo messages → download the highest-res variant and pass it as base64.
+    this.bot.on("message:photo", async (ctx) => {
+      const sizes = ctx.message.photo;
+      const largest = sizes[sizes.length - 1]; // grammY orders ascending by size
+      if (!largest) return;
+      const file = await ctx.api.getFile(largest.file_id);
+      if (!file.file_path) return;
+      const res = await fetch(`https://api.telegram.org/file/bot${this.token}/${file.file_path}`);
+      const base64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+      await this.dispatch({
+        userKey: String(ctx.from.id),
+        text: ctx.message.caption ?? "",
+        dedupeId: String(ctx.update.update_id),
+        senderUsername: ctx.from.username,
+        image: { base64, mimeType: "image/jpeg" }, // Telegram serves photos as JPEG
       });
     });
 
