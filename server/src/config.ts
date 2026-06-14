@@ -25,6 +25,8 @@ export interface ServerConfig {
   supabaseServiceRoleKey: string;
   /** Arc chain id — used as the EIP-712 domain chainId for receipt verification. */
   arcChainId: number;
+  /** Anthropic API key for the Stage 3 intent parser. */
+  anthropicApiKey: string;
 }
 
 export function loadServerConfig(): ServerConfig {
@@ -35,5 +37,6 @@ export function loadServerConfig(): ServerConfig {
     supabaseUrl: requireEnv("SUPABASE_URL"),
     supabaseServiceRoleKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
     arcChainId: intEnv("ARC_CHAIN_ID", 5042002),
+    anthropicApiKey: requireEnv("ANTHROPIC_API_KEY"),
   };
 }

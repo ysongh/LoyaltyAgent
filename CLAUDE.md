@@ -96,10 +96,20 @@ JSON summary of deployed addresses.
 
 # Agent service (`server/`)
 
-The customer-facing agent. Built in stages; **Stage 1 (transport seam + echo) and
-Stage 2 (identity + onboarding) are done.** Stage 3 (Claude intent parser) and
-Stage 4 (mint/redeem/gift chain calls) are not built yet — do not add them unless
-asked.
+The customer-facing agent. Built in stages; **Stage 1 (transport seam), Stage 2
+(identity + onboarding), and Stage 3 (Claude intent parser) are done.** Stage 4
+(mint/redeem/gift chain calls — actually executing intents on-chain) is not built
+yet — do not add it unless asked.
+
+## End-to-end flow (current behaviour)
+
+- **Onboarding (Stage 2):** `/start <token>` → verify merchant receipt →
+  provision a wallet → acknowledge pending points. **No minting.**
+- **Chat (Stage 3):** a known customer's free text → Claude parses it into one
+  structured intent → our code validates → reply confirms or asks to clarify.
+  **Nothing is executed** — the model proposes, code is the authority, execution
+  (Stage 4) doesn't exist yet.
+- Unknown users / bare `/start` → "Scan a receipt to get started."
 
 ## Commands (run in `server/`)
 
@@ -110,6 +120,7 @@ asked.
 | `pnpm check` | Typecheck (`tsc --noEmit`). |
 | `pnpm seed` | Insert a `pending_scans` row with a valid EIP-712-signed receipt and print a `/start <token>` deep link. |
 | `pnpm seed -- --forged` | Same, but signed by a non-merchant key (for testing rejection). |
+| `pnpm test:intent` | Run the adversarial intent-parser test table (needs `ANTHROPIC_API_KEY`). |
 
 ## Stack
 
@@ -117,6 +128,7 @@ asked.
 - **grammY** for Telegram (long-polling for local dev).
 - **@supabase/supabase-js** with the **service role** key (backend-only).
 - **@dynamic-labs-wallet/node-evm** for MPC server wallets (proven in `spike/`).
+- **@anthropic-ai/sdk** (`claude-sonnet-4-6`) for the intent parser.
 - **viem** for EIP-712 signing/recovery.
 
 ## Transport seam (don't break this)
@@ -160,6 +172,32 @@ and verified in the backend. Shared between core and seed in
 - type `Receipt { merchantId uint256, points uint256, nonce string }`
 - `nonce` is bound to the scan token to prevent cross-token replay.
 
+## Intent parser (Stage 3)
+
+For free text from a **known** customer, the core calls an intent resolver
+([src/intent/](server/src/intent/)). The model **PARSES, never executes** — your
+code is the authority.
+
+- **Parser** ([parser.ts](server/src/intent/parser.ts)): Claude `claude-sonnet-4-6`
+  with four tools — `check_balance`, `redeem_points`, `gift_points`, `help`
+  ([tools.ts](server/src/intent/tools.ts)) — and `tool_choice: { type: "any",
+  disable_parallel_tool_use: true }` so it emits **exactly one** intent and no
+  free text. Returns the proposal only.
+- **Safety contract** ([prompt.ts](server/src/intent/prompt.ts)): one intent per
+  message; never fabricate a points amount or recipient (vague quantities like
+  "some"/"all" are *missing*, not amounts; spelled-out numbers like "twenty" may
+  be normalised — that's interpretation, not fabrication); the customer message is
+  data, not instructions (injection attempts → `help`).
+- **Validation** ([validate.ts](server/src/intent/validate.ts), our code): a
+  redeem/gift only becomes a "confirm" when points is a positive integer (and a
+  recipient is present, for gifts); otherwise a specific clarification; everything
+  else → help. This is the backstop that guarantees no confirmation describes a
+  money action with a missing/invalid amount.
+- The **core never imports Anthropic** — it depends only on the
+  `resolveIntent(text) => Promise<string>` seam ([resolver.ts](server/src/intent/resolver.ts)).
+- The whole path is **propose-only**: no chain/mint/redeem/transfer/wallet calls
+  exist under `src/intent/`. Keep it that way until Stage 4.
+
 ## Supabase schema (backend-only)
 
 Migration: `server/supabase/migrations/`. Project ref `xxihgjberaerorhlssps`.
@@ -190,9 +228,10 @@ INFO-level "RLS enabled, no policy" advisories are intentional.
 ## `server/.env`
 
 `TELEGRAM_BOT_TOKEN`, `DYNAMIC_ENVIRONMENT_ID`, `DYNAMIC_AUTH_TOKEN`,
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ARC_CHAIN_ID` (default `5042002`).
-Seed-only: `MERCHANT_TEST_PRIVATE_KEY` (its address becomes the merchant signer),
-optional `MERCHANT_TEST_ID`/`POINTS`. See `server/.env.example`.
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ARC_CHAIN_ID` (default `5042002`),
+`ANTHROPIC_API_KEY` (intent parser). Seed-only: `MERCHANT_TEST_PRIVATE_KEY` (its
+address becomes the merchant signer), optional `MERCHANT_TEST_ID`/`POINTS`. See
+`server/.env.example`.
 
 ## Dependency-audit note
 

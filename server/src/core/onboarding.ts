@@ -2,6 +2,7 @@ import type { Address } from "viem";
 import type { InboundMessage, Replier } from "../transport/types";
 import type { Repo } from "../db/repo";
 import type { WalletProvisioner } from "../wallet";
+import type { IntentResolver } from "../intent/resolver";
 import { verifyReceiptSignature } from "../receipt";
 import { log } from "../log";
 
@@ -16,6 +17,8 @@ export interface OnboardingDeps {
   replier: Replier;
   /** EIP-712 domain chainId (Arc = 5042002). */
   chainId: number;
+  /** Parses free text from a known customer into a proposal-only reply (Stage 3). */
+  resolveIntent: IntentResolver;
 }
 
 /**
@@ -43,8 +46,23 @@ export class OnboardingCore {
       return;
     }
 
-    // Bare /start (startPayload === "") or any plain message → no wallet creation.
-    await this.deps.replier.reply(msg.userKey, COLD_REPLY);
+    // Bare /start (startPayload === "") → onboarding entry point, never intent.
+    if (msg.startPayload !== undefined) {
+      await this.deps.replier.reply(msg.userKey, COLD_REPLY);
+      return;
+    }
+
+    // Plain free-text message. Unknown users get the cold reply (no wallet, no
+    // parsing). Known customers go through the Stage 3 intent parser — which only
+    // PROPOSES an intent; nothing is executed.
+    const customer = await this.deps.repo.getCustomerByTelegram(msg.userKey);
+    if (!customer) {
+      await this.deps.replier.reply(msg.userKey, COLD_REPLY);
+      return;
+    }
+
+    const reply = await this.deps.resolveIntent(msg.text);
+    await this.deps.replier.reply(msg.userKey, reply);
   }
 
   private async onboard(userKey: string, token: string): Promise<void> {

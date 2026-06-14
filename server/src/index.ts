@@ -1,7 +1,9 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { loadServerConfig } from "./config";
 import { createServiceClient } from "./db/supabase";
 import { Repo } from "./db/repo";
 import { WalletProvisioner } from "./wallet";
+import { createIntentResolver } from "./intent/resolver";
 import { OnboardingCore } from "./core/onboarding";
 import { TelegramTransport } from "./transport/telegram";
 import { log } from "./log";
@@ -12,6 +14,8 @@ async function main() {
   const sb = createServiceClient(cfg.supabaseUrl, cfg.supabaseServiceRoleKey);
   const repo = new Repo(sb);
   const provisioner = new WalletProvisioner(cfg.dynamicEnvironmentId, cfg.dynamicAuthToken);
+  const anthropic = new Anthropic({ apiKey: cfg.anthropicApiKey });
+  const resolveIntent = createIntentResolver(anthropic);
 
   const transport = new TelegramTransport(cfg.telegramBotToken);
   const core = new OnboardingCore({
@@ -19,6 +23,7 @@ async function main() {
     provisioner,
     replier: transport, // core sees the transport only as a Replier
     chainId: cfg.arcChainId,
+    resolveIntent,
   });
 
   // Telegram adapter → OnboardingCore → reply. The core only receives InboundMessage.

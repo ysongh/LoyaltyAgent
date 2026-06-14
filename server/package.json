@@ -8,9 +8,11 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "check": "tsc --noEmit",
-    "seed": "tsx src/dev/seed.ts"
+    "seed": "tsx src/dev/seed.ts",
+    "test:intent": "tsx src/dev/intent-test.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.1",
     "@dynamic-labs-wallet/node": "^1.0.32",
     "@dynamic-labs-wallet/node-evm": "^1.0.32",
     "@supabase/supabase-js": "^2.108.1",
