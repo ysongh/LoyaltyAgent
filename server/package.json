@@ -3,16 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Transport-agnostic agent service for the loyalty app. Stage 1: Telegram adapter + echo core.",
+  "description": "Transport-agnostic agent service for the loyalty app. Stage 2: Telegram adapter + identity/onboarding core.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "check": "tsc --noEmit",
-    "core:check": "tsx src/dev/core-check.ts"
+    "seed": "tsx src/dev/seed.ts"
   },
   "dependencies": {
+    "@dynamic-labs-wallet/node": "^1.0.32",
+    "@dynamic-labs-wallet/node-evm": "^1.0.32",
+    "@supabase/supabase-js": "^2.108.1",
     "dotenv": "^17.4.2",
-    "grammy": "^1.30.0"
+    "grammy": "^1.30.0",
+    "viem": "2.52.2"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

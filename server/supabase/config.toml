@@ -1,0 +1,4 @@
+# Minimal Supabase project config so `supabase link` / `supabase db push` can
+# target the remote project. Full local-stack config is intentionally omitted —
+# Stage 2 applies migrations to the remote project (see migrations/).
+project_id = "xxihgjberaerorhlssps"
