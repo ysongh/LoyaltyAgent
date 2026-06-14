@@ -16,6 +16,8 @@ export interface InboundMessage {
   dedupeId: string;
   /** Deep-link onboarding payload from `/start <payload>`; `undefined` for normal messages. */
   startPayload?: string;
+  /** The sender's human handle on the transport (Telegram @username), if any. Used to resolve gift recipients. */
+  senderUsername?: string;
 }
 
 /** Anything that can send a text reply, addressed by the same `userKey` carried inbound. */

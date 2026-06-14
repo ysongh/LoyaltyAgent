@@ -9,7 +9,9 @@
     "start": "tsx src/index.ts",
     "check": "tsc --noEmit",
     "seed": "tsx src/dev/seed.ts",
-    "test:intent": "tsx src/dev/intent-test.ts"
+    "test:intent": "tsx src/dev/intent-test.ts",
+    "operator:create": "tsx src/dev/operator-create.ts",
+    "bootstrap": "tsx src/dev/bootstrap.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

@@ -27,6 +27,24 @@ export interface ServerConfig {
   arcChainId: number;
   /** Anthropic API key for the Stage 3 intent parser. */
   anthropicApiKey: string;
+  /** Arc RPC endpoint for on-chain reads/writes (Stage 4). */
+  arcRpcUrl: string;
+  /** Deployed LoyaltyPoints (ERC-1155) address. */
+  loyaltyPointsAddress: `0x${string}`;
+  /** Deployed MerchantEscrow address (native-USDC payout). */
+  merchantEscrowAddress: `0x${string}`;
+  /** Single-merchant demo: the merchant id to pin on-chain actions to. */
+  demoMerchantId: number;
+  /** Confirm-then-execute pending TTL in ms (default 5 min). */
+  pendingTtlMs: number;
+}
+
+function addrEnv(name: string): `0x${string}` {
+  const v = requireEnv(name);
+  if (!/^0x[0-9a-fA-F]{40}$/.test(v)) {
+    throw new Error(`${name} must be a 0x-prefixed 20-byte address, got "${v}"`);
+  }
+  return v as `0x${string}`;
 }
 
 export function loadServerConfig(): ServerConfig {
@@ -38,5 +56,10 @@ export function loadServerConfig(): ServerConfig {
     supabaseServiceRoleKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
     arcChainId: intEnv("ARC_CHAIN_ID", 5042002),
     anthropicApiKey: requireEnv("ANTHROPIC_API_KEY"),
+    arcRpcUrl: process.env.ARC_TESTNET_RPC_URL?.trim() || "https://rpc.testnet.arc.network",
+    loyaltyPointsAddress: addrEnv("LOYALTY_POINTS_ADDRESS"),
+    merchantEscrowAddress: addrEnv("MERCHANT_ESCROW_ADDRESS"),
+    demoMerchantId: intEnv("DEMO_MERCHANT_ID", 1),
+    pendingTtlMs: intEnv("PENDING_TTL_MS", 5 * 60_000),
   };
 }

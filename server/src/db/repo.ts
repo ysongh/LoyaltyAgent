@@ -21,12 +21,100 @@ export interface Customer {
   wallet_address: string | null;
 }
 
+/** A wallet's material for custodial signing (loaded from the vault, never logged). */
+export interface SigningWallet {
+  userKey: string;
+  address: string;
+  walletMetadata: unknown;
+  shares: unknown;
+}
+
+export interface OperatorWalletRow {
+  wallet_address: string;
+  wallet_metadata: unknown;
+  shares: unknown;
+}
+
 /**
- * Data access over the service-role client. The secret `shares` are written here
- * and never read back by any method (no select on wallet_key_shares).
+ * Data access over the service-role client. Secret `shares` are written here and,
+ * for Stage 4, loaded back ONLY by the backend signer (never by any client-facing
+ * query) and never logged.
  */
 export class Repo {
   constructor(private readonly sb: SupabaseClient) {}
+
+  // --- Stage 4: operator vault, custodial customer signing, gift recipients ---
+
+  async getOperatorWallet(label: string): Promise<OperatorWalletRow | null> {
+    const { data, error } = await this.sb
+      .from("operator_wallets")
+      .select("wallet_address, wallet_metadata, shares")
+      .eq("label", label)
+      .maybeSingle();
+    if (error) throw error;
+    return data as OperatorWalletRow | null;
+  }
+
+  async saveOperatorWallet(
+    label: string,
+    walletAddress: string,
+    walletMetadata: unknown,
+    shares: unknown,
+  ): Promise<void> {
+    const { error } = await this.sb
+      .from("operator_wallets")
+      .insert({ label, wallet_address: walletAddress, wallet_metadata: walletMetadata, shares });
+    if (error) throw error;
+  }
+
+  /** Load a customer's full signing material (customers + wallet_key_shares). */
+  async getCustomerSigningWallet(telegramUserId: string): Promise<SigningWallet | null> {
+    const { data: customer, error } = await this.sb
+      .from("customers")
+      .select("user_key, wallet_address, wallet_metadata")
+      .eq("telegram_user_id", telegramUserId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!customer) return null;
+
+    const c = customer as { user_key: string; wallet_address: string | null; wallet_metadata: unknown };
+    const { data: keyRow, error: keyErr } = await this.sb
+      .from("wallet_key_shares")
+      .select("shares")
+      .eq("user_key", c.user_key)
+      .maybeSingle();
+    if (keyErr) throw keyErr;
+    if (!keyRow || !c.wallet_address) return null;
+
+    return {
+      userKey: c.user_key,
+      address: c.wallet_address,
+      walletMetadata: c.wallet_metadata,
+      shares: (keyRow as { shares: unknown }).shares,
+    };
+  }
+
+  /** Resolve a gift recipient by @handle to an onboarded customer with a wallet. */
+  async getCustomerByUsername(username: string): Promise<Customer | null> {
+    const handle = username.replace(/^@/, "").toLowerCase();
+    const { data, error } = await this.sb
+      .from("customers")
+      .select("user_key, telegram_user_id, wallet_address")
+      .eq("telegram_username", handle)
+      .maybeSingle();
+    if (error) throw error;
+    return data as Customer | null;
+  }
+
+  /** Remember a customer's current Telegram handle (lowercased, no @). */
+  async setCustomerUsername(telegramUserId: string, username: string): Promise<void> {
+    const handle = username.replace(/^@/, "").toLowerCase();
+    const { error } = await this.sb
+      .from("customers")
+      .update({ telegram_username: handle })
+      .eq("telegram_user_id", telegramUserId);
+    if (error) throw error;
+  }
 
   async getMerchant(merchantId: number): Promise<Merchant | null> {
     const { data, error } = await this.sb

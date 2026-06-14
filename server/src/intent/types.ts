@@ -1,6 +1,5 @@
 /**
- * Intent types — pure data, no Anthropic/grammY imports. The core depends only
- * on the resolver function signature, never on these or on the SDK.
+ * Intent types — pure data, no Anthropic/grammY imports.
  */
 
 export type IntentTool = "check_balance" | "redeem_points" | "gift_points" | "help";

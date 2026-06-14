@@ -46,6 +46,7 @@ export class TelegramTransport implements Transport {
         userKey: String(ctx.from.id),
         text: ctx.message.text,
         dedupeId: String(ctx.update.update_id),
+        senderUsername: ctx.from.username,
       });
     });
 

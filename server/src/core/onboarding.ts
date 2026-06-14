@@ -2,9 +2,11 @@ import type { Address } from "viem";
 import type { InboundMessage, Replier } from "../transport/types";
 import type { Repo } from "../db/repo";
 import type { WalletProvisioner } from "../wallet";
-import type { IntentResolver } from "../intent/resolver";
 import { verifyReceiptSignature } from "../receipt";
 import { log } from "../log";
+
+/** Handles a known customer's free-text message (Stage 4 agent brain). */
+export type CustomerMessageHandler = (msg: InboundMessage) => Promise<void>;
 
 const COLD_REPLY = "Scan a receipt to get started.";
 const INVALID_REPLY =
@@ -17,8 +19,8 @@ export interface OnboardingDeps {
   replier: Replier;
   /** EIP-712 domain chainId (Arc = 5042002). */
   chainId: number;
-  /** Parses free text from a known customer into a proposal-only reply (Stage 3). */
-  resolveIntent: IntentResolver;
+  /** Handles a known customer's free-text message (Stage 4: parse → confirm → execute). */
+  handleCustomerMessage: CustomerMessageHandler;
 }
 
 /**
@@ -61,8 +63,7 @@ export class OnboardingCore {
       return;
     }
 
-    const reply = await this.deps.resolveIntent(msg.text);
-    await this.deps.replier.reply(msg.userKey, reply);
+    await this.deps.handleCustomerMessage(msg);
   }
 
   private async onboard(userKey: string, token: string): Promise<void> {
